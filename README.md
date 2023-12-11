@@ -6,6 +6,8 @@ This was originally created to get data for SSG apps, in order to avoid having t
 
 The example below just demonstrates returning JSON in an ES module but any form of ES module can be returned by the virtual module. 
 
+If you encounter bugs or have a feature request, feel free to open an issue on github.
+
 ## Vite Setup
 
 ```js
