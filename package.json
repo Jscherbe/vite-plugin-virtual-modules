@@ -1,0 +1,38 @@
+{
+  "name": "@ulu/vite-plugin-virtual-modules",
+  "description": "This plugin allows the creation of virtual modules using normal ES modules that return dynamic modules",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jscherbe/vite-plugin-virtual-modules.git"
+  },
+  "keywords": [
+    "vite",
+    "plugin",
+    "virtual",
+    "data",
+    "async",
+    "build data",
+    "fetch",
+    "JSON",
+    "SSG"
+  ],
+  "author": "Joe Scherben",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Jscherbe/vite-plugin-virtual-modules/issues"
+  },
+  "homepage": "https://github.com/Jscherbe/vite-plugin-virtual-modules#readme",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.5.1",
+    "vite": "^5.0.5",
+    "vue": "^3.3.10"
+  }
+}
