@@ -7,14 +7,16 @@ const virtualPrefix = '\0';
  * @example
  *   // Importing will actuall be importing the JSON returned by the js file
  *   // the JS file will not be imported into the app just the JSON it returns
- *   import { authors } from "./data.js?virtual-module";
+ *   import authors from "./data.js?virtual-module";
  * 
  *   // Inside data.js
- *   import { createJsonModule } from "@ulu/vite-plugin-virtual-modules";
- *   export default async function() {
- *     const content = await fetch("https://cms.com/api/authors/");
+ *   import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
+ * 
+ *   export default async function(id) {
+ *     const result = await fetch("https://cms.com/api/authors/");
+ *     const authors = await result.json();
  *     // Do stuff to get content and return JSON
- *     return createJsonModule(content);
+ *     return createJsonModule(authors);
  *   }
  * @returns {Object} Vite Plugin
  */
@@ -76,7 +78,7 @@ function resolveArgs(virtual) {
 /**
  * Takes serializable data and converts it into ES Module that stores data as JSON
  * - The data is the default output of the new module
- * @param {Array|Object} data Data to convert into ES module
+ * @param {Object} data Data to convert to JSON in ES module
  * @returns {String} String version of ES Module
  * @example What the returned module looks like
  *   export default JSON.parse(...)
