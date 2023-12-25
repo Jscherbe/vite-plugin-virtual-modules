@@ -1,15 +1,37 @@
 <script setup>
-  import virtualMessageSync from "./test-sync.js?virtual-module";
-  import users from "./test-async.js?virtual-module";
-  console.log(users);
+  import testSync from "./tests/sync.js?virtual-module";
+  import testReload from "./tests/sync-reload.js?virtual-module";
+  import testQuery from "./tests/sync-queries.js?virtual-module&type=dog";
+  import asyncUsers from "./tests/async.js?virtual-module";
+  import testWatch from "./tests/sync-watch.js?virtual-module";
+  console.log(asyncUsers);
 </script>
 
 <template>
-  Tests
-  <p>
-    {{ virtualMessageSync }}
-  </p>
-  <p>
-    {{ users.length }}
-  </p>
+  <h1>Tests</h1>
+
+  <h2>Sync</h2>
+  <p>Should output hello world</p>
+  <p>{{ testSync.msg }}</p>
+
+  <h2>Queries</h2>
+  <p>Should output type dog</p>
+  <p>{{ testQuery.msg }}</p>
+
+  <h2>Watch</h2>
+  <p>This should print out a list of messages (content of watched txt files)</p>
+  <ul>
+    <li v-for="(msg, index) in testWatch.messages" :key="index">
+      {{ msg }}
+    </li>
+  </ul>
+
+  <h2>Reload</h2>
+  <p>Should count upwards as module is reloaded in timeout</p>
+  <p>{{ testReload.msg }}</p>
+
+  <h2>Async</h2>
+  <p>Should output dynamic length of fetched content (users.length)</p>
+  <p>{{ asyncUsers.length }}</p>
+
 </template>

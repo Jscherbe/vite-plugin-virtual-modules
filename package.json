@@ -27,6 +27,7 @@
   "homepage": "https://github.com/Jscherbe/vite-plugin-virtual-modules#readme",
   "scripts": {
     "dev": "vite",
+    "dev:inspect": "node --inspect-brk node_modules/vite",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -34,5 +35,8 @@
     "@vitejs/plugin-vue": "^4.5.1",
     "vite": "^5.0.5",
     "vue": "^3.3.10"
+  },
+  "dependencies": {
+    "chokidar": "^3.5.3"
   }
 }
