@@ -1,5 +1,19 @@
 # Dev Notes
 
+## Memory Leaks / Performance
+
+- Do we need to worry about the module instances
+  - When we cachebust we are saving a new module to the registry
+  - The old module will still exist
+    - ES modules don't have any method of garbage collection, all modules will stay alive in the registry until the process is restarted and the registry is rebuilt
+    - I don't think this is an issue for development of small modules but for larger/many modules maybe having the save watch cache bust will be an issue
+    - [See](https://github.com/nodejs/help/issues/2806)
+    - [See](https://esdiscuss.org/topic/are-es-modules-garbage-collected-if-so-do-they-re-execute-on-next-import)
+    - Should probably wait and see if there are issues after using this for some time
+    - May be able to setup a test to measure memory usage as new modules are added over and over
+      - Test something extreme (make a module every 300ms or something with a large dataset)
+      - Run for 10mins and see how memory is effected
+
 ## Working on watch option
 
 - Decide if what watch means (is this only change?) or add remove, etc
