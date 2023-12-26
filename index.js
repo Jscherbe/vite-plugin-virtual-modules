@@ -3,118 +3,183 @@ import path from "path";
 import chokidar from "chokidar";
 
 let server;
+let config;
+let isServe;
+
 const virtualPrefix = '\0';
+const importPaths = new Map();
 const filesChanged = new Set();
-const watchers = new Map();
+const moduleWatchers = new Map();
 const fileWatchers = new Map();
 const pluginName = '@ulu/vite-plugin-virtual-modules';
 const defaults = {
   suffix: /\?virtual-module(&.*)*$/,
-  watchEvents: ["add", "unlink", "change", "unlinkDir", "addDir"]
+  watchEvents: ["add", "unlink", "change", "unlinkDir", "addDir"],
+  watchOptions: {}
 };
 
 /**
  * Vite plugin to convert normal js file into server side loaded JSON
- * @param {Object} config Configuraton object
- * @param {Regex} config.suffix Regex to match files (default is "?virtual-module")
- * @param {Regex} config.watchEvents Events that should trigger file watch reload
+ * @param {Object} options Configuraton object
+ * @param {Regex} options.suffix Regex to match files (default is "?virtual-module")
+ * @param {Regex} options.watchEvents Events that should trigger file watch reload, can also be set on loader
+ * @param {Regex} options.watchOptions Option to be passed to chokidar library for watching, can also be set on loader
  * @returns {Object} Vite Plugin
  */
-export default function pluginVirtualModules(config) {
-  const opts = Object.assign({}, defaults, config);
+export default function pluginVirtualModules(options) {
+  const opts = Object.assign({}, defaults, options);
   return {
     name: pluginName,
     configureServer(_server) {
       server = _server;
     },
+    configResolved(_config) {
+      config = _config;
+      isServe = config.command === "serve";
+    },
+    async closeBundle() {
+      cleanupAllWatchers(moduleWatchers);
+      cleanupAllWatchers(fileWatchers);
+    },
     resolveId(id) {
-      if (opts.suffix.test(id)) return vid(id);
+      if (opts.suffix.test(id)) {
+        return prefixId(id);
+      }
     },
     async load(id) {
       if (!opts.suffix.test(id)) return;
       try {
-        // Close watchers from previous loads
-        cleanupWatchers(watchers, id);
-        cleanupWatchers(fileWatchers, id);
-        
-        // Reload is used internally and by user programmatically if needed
-        const reload = async () => {
-          const mod = await server.moduleGraph.getModuleById(id);
-          if (mod) {
-            server.reloadModule(mod);
-          }
-        };
-        const queries = url.parse(id, true)?.query;
-        const ctx = { id, queries, reload };
-        const modulePath = id.split("?")[0];
-        
-        const watcher = chokidar.watch(modulePath);
-        watchers.set(id, watcher);
-        watcher.on("change", () => {
-          filesChanged.add(id);
-          reload();
-        });
-        
-        // If this was triggered by file change to the loader, reload the module 
-        // in node using cache busting query
-        let moduleUrl = id;
-        if (filesChanged.has(id)) {
-          moduleUrl = cacheBustUrl(id);
-          filesChanged.delete(id);
-        }
-
-        // Load the users module
-        const module = await import(/* @vite-ignore */moduleUrl);
-        if (!module) {
-          throw new Error(pluginName, "Unable to import virtual module", id);
-        }
-        const loader = await module.default(ctx);
-        if (!loader) {
-          throw new Error(pluginName, "No module returned from virtual modules (create)", id);
-        }
-        if (!loader.load) {
-          throw new Error(pluginName, "Virtual module should return an object with load() method", id);
-        }
-
-        // Check if the loader has watch option set
-        // if so setup up file watcher, and wait for ready event
-        let watchedFiles;
-        if (loader.watch) {
-          watchedFiles = new Promise((resolve, reject) => {
-            const fileWatcher = chokidar.watch(loader.watch, { 
-              cwd: path.dirname(id),
-              ignoreInitial: true
-            });
-            fileWatcher.on("all", (event) => {
-              if (opts.watchEvents.includes(event)) {
-                reload();
-              }
-            });
-            fileWatcher.on("ready", () => {
-              const files = fileWatcher.getWatched();
-              resolve(toFilesArray(files));
-            });
-            fileWatcher.on("error", (error) => {
-              reject(new Error(`File watcher error: ${ error }`));
-            })
-          }); 
-        }
-        
+        const ctx = createContext(id);
+        cleanupWatcher(moduleWatchers, id);
+        cleanupWatcher(fileWatchers, id);
+        setupModuleWatcher(ctx);
+        // Load the user's module (the path in the ID)
+        // Then call the user's function (default method) passing them the 
+        // context, so they can do what ever they need to do with that information
+        // and then they return the loader configuration object (ie. load, watch, etc)
+        const loader = await importLoader(ctx);
         // Load the virtual module using the user's load method
-        // - if they were watching files we wait and pass them
-        let result;
-        if (watchedFiles) {
-          result = await loader.load(await watchedFiles);
-        } else {
-          result = await loader.load();
-        }
-        
-        return result;
+        // if they were watching files we wait and pass them
+        return await loader.load(await setupWatchedFiles(ctx, opts, loader));
       } catch (error) {
         console.error(error);
       }
     },
   }
+}
+
+/**
+ * Check if the loader has watch option set if so setup up file watcher, 
+ * and wait for ready event
+ * @param {Object} ctx Context object
+ * @param {Object} opts Options
+ * @param {Object} loader Users loader options
+ * @returns {Promise} Returns a list of watched files (flat array) once resolved
+ */
+function setupWatchedFiles(ctx, opts, loader) {
+  const { id, reload } = ctx;
+  if (!loader.watch) {
+    return Promise.resolve([]);
+  }
+  return new Promise((resolve, reject) => {
+    const watchOpts = { cwd: path.dirname(id) };
+    const reqOpts = { ignoreInitial: true };
+
+    // Either loader or global plugin opts 
+    const userOpts = loader.watchOptions ? loader.watchOptions : opts.watchOptions;
+    const watchEvents = loader.watchEvents || opts.watchEvents;
+    Object.assign(watchOpts, userOpts, reqOpts);
+    
+    const watcher = chokidar.watch(loader.watch, watchOpts);
+    fileWatchers.set(id, watcher);
+
+    watcher.on("all", (event) => {
+      if (watchEvents.includes(event)) {
+        reload();
+      }
+    });
+    watcher.on("ready", () => {
+      const files = watcher.getWatched();
+      resolve(toFilesArray(files));
+    });
+    watcher.on("error", (error) => {
+      reject(new Error(`File watcher error: ${ error }`));
+    });
+  }); 
+}
+
+/**
+ * Load the user's module and then call the default 
+ * function to return the loader object
+ * @param {Object} ctx Context
+ * @returns {Object} Loader config
+ */
+async function importLoader(ctx) {
+  const { id, importPath } = ctx;
+  const module = await import(/* @vite-ignore */importPath);
+  if (!module) {
+    throw new Error(pluginName, "Unable to import virtual module", id);
+  }
+  const loader = await module.default(ctx);
+  if (!loader) {
+    throw new Error(pluginName, "No module returned from virtual modules (create)", id);
+  }
+  if (!loader.load) {
+    throw new Error(pluginName, "Virtual module should return an object with load() method", id);
+  }
+  return loader;
+}
+
+/**
+ * Setup the watcher that watches the user's module for changes
+ * @param {Object} ctx Context object
+ * @returns 
+ */
+function setupModuleWatcher(ctx) {
+  if (!isServe) return;
+  const { id, reload, filePath } = ctx;
+  const watcher = chokidar.watch(filePath);
+  moduleWatchers.set(id, watcher);
+  watcher.on("change", () => {
+    filesChanged.add(id);
+    // Set the new path to load the node module from that includes the 
+    // cachekill query, which will force node to load this as a new module
+    // instead of grabbing the current cached one. This is put into a lookup
+    // so that it can be the new url/path to the node module from this point forward.
+    // This way if a user reloads the module using the reload() they will get the current 
+    // running/cached version of their module
+    importPaths.set(id, cacheBustUrl(id));
+    reload();
+  });
+}
+
+/**
+ * Create the context object
+ * @param {String} id Module id
+ * @returns {Object} Context object that is used internally for the module and passed to user
+ */
+function createContext(id) {
+  // If this was triggered by file change to the loader, reload the module 
+  // in node using cache busting query
+  let importPath = id;
+  if (importPaths.has(id)) {
+    importPath = importPaths.get(id);
+  }
+  return {
+    id,
+    isServe,
+    importPath,
+    command: config.command,
+    filePath: id.split("?")[0],
+    queries: url.parse(id, true)?.query,
+    reload: async () => {
+      if (!isServe) return;
+      const mod = await server?.moduleGraph?.getModuleById(id);
+      if (mod) {
+        server.reloadModule(mod);
+      }
+    }
+  };
 }
 
 /**
@@ -133,17 +198,35 @@ function toFilesArray(watched) {
     }, [])
     .sort();
 }
-function cleanupWatchers(map, id) {
+
+/**
+ * Close watchers from previous loads
+ * @param {Map} map Map to search through 
+ * @param {String} id Module id
+ */
+function cleanupWatcher(map, id) {
   if (map.has(id)) {
     map.get(id).close();
     map.delete(id);
   }
 }
+
+/**
+ * Close all chokidar watchers for a given map
+ * @param {Map} map Map to remove all watchers from
+ */
+function cleanupAllWatchers(map) {
+  for (const watcher of map.values()) {
+    watcher.close();
+  }
+  map.clear();
+}
+
 /**
  * Prevents other plugins from messing with source module
  * @see https://vitejs.dev/guide/api-plugin#transforming-custom-file-types
  */
-function vid(id) {
+function prefixId(id) {
   return virtualPrefix + id;
 }
 /**

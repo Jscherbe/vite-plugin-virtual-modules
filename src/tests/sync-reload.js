@@ -4,12 +4,14 @@ import { toJsonModule } from "../../index.js";
 
 let count = 0;
 
-export default function({ reload }) {
-
-  setTimeout(() => {
-    count++;
-    reload();
-  }, 5000);
+export default function({ reload, isServe }) {
+  if (isServe) {
+    setTimeout(() => {
+      count++;
+      console.log('RELOAD -- sync-reload');
+      reload();
+    }, 5000);
+  }
 
   return {
     load() {
