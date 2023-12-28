@@ -8,7 +8,6 @@ let isServe;
 
 const virtualPrefix = '\0';
 const importPaths = new Map();
-const filesChanged = new Set();
 const moduleWatchers = new Map();
 const fileWatchers = new Map();
 const pluginName = '@ulu/vite-plugin-virtual-modules';
@@ -141,7 +140,6 @@ function setupModuleWatcher(ctx) {
   const watcher = chokidar.watch(filePath);
   moduleWatchers.set(id, watcher);
   watcher.on("change", () => {
-    filesChanged.add(id);
     // Set the new path to load the node module from that includes the 
     // cachekill query, which will force node to load this as a new module
     // instead of grabbing the current cached one. This is put into a lookup

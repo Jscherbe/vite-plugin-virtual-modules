@@ -1,10 +1,37 @@
-# Vite Plugin Virtual Modules
+# @ulu/vite-plugin-virtual-modules
 
 This plugin allows you to easily create virtual modules (modules whose contents are created at build time) using normal javascript modules (files). 
 
-This was originally created to get data for SSG apps, in order to avoid having to bring any of the fetching code and dependencies into the bundle/app. Instead just providing a JSON module of the fetch results. 
+```js
+import users from "./data/users.js?virtual-module";
 
-If you encounter bugs or have a feature request, feel free to open an issue on github.
+// Example: [ { user }, { user }, ... } ]
+console.log(users); 
+
+// ... Use the data however
+
+```
+
+The virtual data is loaded by the module that was requested. (ie. "./data/users.js" in this example).
+
+```js
+import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
+import { getContent, contentUpdated } from "./service.js";
+
+export default function() {
+  return {
+    async load() {
+      try {
+        return toJsonModule(await getContent("users"));
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  }
+}
+```
+
+This was originally created to get data for SSG apps, in order to avoid having to bring any of the fetching code and dependencies into the bundle/app. Instead just providing a JSON module of the fetch results. 
 
 **Features:**
 - Use ES modules to create virtual modules (intuitive)
@@ -12,17 +39,17 @@ If you encounter bugs or have a feature request, feel free to open an issue on g
 - Watch other files for changes, to update virtual module
 - Access to queries
 
-**Table of Contents**
+If you encounter bugs or have a feature request, feel free to open an issue on github.
 
-- [Vite Plugin Virtual Modules](#vite-plugin-virtual-modules)
-  - [Vite Setup](#vite-setup)
-  - [Usage](#usage)
-  - [API](#api)
-    - [Importing Virtual Module](#importing-virtual-module)
-    - [Virtual Module Structure](#virtual-module-structure)
-    - [Plugin Options](#plugin-options)
-  - [Change Log](#change-log)
+## Contents
 
+- [Vite Setup](#vite-setup)
+- [Usage](#usage)
+- [API](#api)
+  - [Importing Virtual Module](#importing-virtual-module)
+  - [Virtual Module Structure](#virtual-module-structure)
+  - [Plugin Options](#plugin-options)
+- [Change Log](#change-log)
 
 ## Vite Setup
 
@@ -56,7 +83,7 @@ Below is an example of the vistual module file, it fetches users from the CMS an
 ```js
 // fetch-users.js (mock code)
 
-import { toJsonModule } from "../../index.js";
+import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
 import { getContent, contentUpdated } from "./some-service.js";
 
 export default function({ reload, isServe }) {
@@ -113,7 +140,7 @@ console.log(dogs);
 ```js
 // fetch-animals.js
 
-import { toJsonModule } from "../../index.js";
+import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
 
 export default function({ queries }) {
   return {
