@@ -231,16 +231,21 @@ function prefixId(id) {
  * Inserts qeuery to the end of module if to prevent node js module caching
  */
 function cacheBustUrl(id) {
- return id + `&__killcache=${ Date.now() }`;
+  return id + `&__killcache=${ Date.now() }`;
 }
 /**
  * Takes serializable data and converts it into ES Module that stores data as JSON
  * - The data is the default output of the new module
+ * - The json string itself is escaped, see https://gist.github.com/mathiasbynens/d6e10171d44a59bb5664617c64ff2763
+ *   - Note: There is jsesc for more advanced escaping
  * @param {Object} data Data to convert to JSON in ES module
  * @returns {String} String version of ES Module
  * @example What the returned module looks like
- *   export default JSON.parse(...)
- */
+*   export default JSON.parse(...)
+*/
 export function toJsonModule(data) {
-  return `export default JSON.parse('${ JSON.stringify(data) }')`;
+  const json = JSON.stringify(data);
+  // stringifying the string so that it will be interpretted correctly as a JS string
+  // - There were issues with values that had escapes like '\"hello\"' would be interpretted as '"hello"' in JS string since the single backslash is just within the string. Two are needed
+  return `export default JSON.parse(${ JSON.stringify(json) })`;
 }
