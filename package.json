@@ -1,6 +1,6 @@
 {
   "name": "@ulu/vite-plugin-virtual-modules",
-  "description": "This plugin allows the creation of virtual modules using normal ES modules that return dynamic modules",
+  "description": "A Vite plugin to create virtual modules from loader files at build time, with support for HMR, file watching, and query parameters.",
   "version": "1.0.3",
   "type": "module",
   "main": "index.js",
@@ -10,11 +10,16 @@
   },
   "keywords": [
     "vite",
+    "vite-plugin",
     "plugin",
     "virtual",
+    "virtual-modules",
+    "dynamic-modules",
+    "codegen",
+    "loader",
+    "hmr",
+    "build-time",
     "data",
-    "async",
-    "build data",
     "fetch",
     "JSON",
     "SSG"
