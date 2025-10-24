@@ -1,10 +1,12 @@
 <script setup>
   import testSync from "./tests/sync.js?virtual-module";
+  // import testSync from "./tests/sync-error.js?virtual-module";
   import testReload from "./tests/sync-reload.js?virtual-module";
   import testQuery from "./tests/sync-queries.js?virtual-module&type=dog";
   import asyncUsers from "./tests/async.js?virtual-module";
   import testWatch from "./tests/sync-watch.js?virtual-module";
   console.log(asyncUsers);
+  console.log("testSync:\n", testSync);
 </script>
 
 <template>

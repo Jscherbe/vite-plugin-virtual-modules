@@ -19,7 +19,7 @@ const defaults = {
 
 /**
  * Vite plugin to convert normal js file into server side loaded JSON
- * @param {Object} options Configuraton object
+ * @param {Object} options Configuration object
  * @param {Regex} options.suffix Regex to match files (default is "?virtual-module")
  * @param {Regex} options.watchEvents Events that should trigger file watch reload, can also be set on loader
  * @param {Regex} options.watchOptions Option to be passed to chokidar library for watching, can also be set on loader
@@ -61,7 +61,11 @@ export default function pluginVirtualModules(options) {
         // if they were watching files we wait and pass them
         return await loader.load(await setupWatchedFiles(ctx, opts, loader));
       } catch (error) {
+        // Log original error so user can see stack trace / etc
         console.error(error);
+
+        // Create rollup error which halts the plugin execution
+        this.error(`Error inside virtual module: ${ error.message }`);
       }
     },
   }

@@ -1,91 +1,95 @@
 # @ulu/vite-plugin-virtual-modules
 
-This plugin allows you to easily create virtual modules (modules whose contents are created at build time) using normal javascript modules (files). 
+This plugin allows you to easily create "virtual modules" (modules whose contents are generated at build time) using standard JavaScript files as "loaders".
 
-```js
-import users from "./data/users.js?virtual-module";
+At its core, you write a Node.js module that runs during the Vite build process. This module's job is to generate the code for a new, virtual module that your application can then import.
 
-// Example: [ { user }, { user }, ... } ]
-console.log(users); 
-
-// ... Use the data however
-
-```
-
-The virtual data is loaded by the module that was requested. (ie. "./data/users.js" in this example).
-
-```js
-import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
-import { getContent, contentUpdated } from "./service.js";
-
-export default function() {
-  return {
-    async load() {
-      try {
-        return toJsonModule(await getContent("users"));
-      } catch (error) {
-        console.log(error);
-      }
-    }
-  }
-}
-```
-
-This was originally created to get data for SSG apps, in order to avoid having to bring any of the fetching code and dependencies into the bundle/app. Instead just providing a JSON module of the fetch results. 
+This is especially useful for things like build-time data fetching for SSG apps, injecting build-time constants, or generating modules from custom file types. It avoids bringing server-side code and dependencies into your browser bundle.
 
 **Features:**
-- Use ES modules to create virtual modules (intuitive)
-- HMR Update when you modify a host/loader module
-- Watch other files for changes, to update virtual module
-- Access to queries
+- Use standard ES modules to create virtual modules.
+- HMR updates for your virtual module when you modify the loader.
+- Watch other files for changes to trigger a reload of the virtual module.
+- Pass query parameters to your loader module.
 
-If you encounter bugs or have a feature request, feel free to open an issue on github.
+*If you encounter bugs or have a feature request, feel free to open an issue on github.*
 
-## Contents
+**Table of Contents:**
 
+- [A Simple Example](#a-simple-example)
 - [Vite Setup](#vite-setup)
 - [Usage](#usage)
+  - [Advanced Example: Data Fetching](#advanced-example-data-fetching)
+  - [Using Queries](#using-queries)
 - [API](#api)
-  - [Importing Virtual Module](#importing-virtual-module)
-  - [Virtual Module Structure](#virtual-module-structure)
+  - [Importing a Virtual Module](#importing-a-virtual-module)
+  - [The `toJsonModule` Helper](#the-tojsonmodule-helper)
+  - [Loader Module Structure](#loader-module-structure)
+    - [Context Object](#context-object)
   - [Plugin Options](#plugin-options)
 - [Change Log](#change-log)
+
+
+## A Simple Example
+
+1.  **Create a "loader" module.** This code runs in Node.js.
+
+    ```javascript
+    // build-time.js
+    export default function() {
+      return {
+        load() {
+          // This string will become the content of the virtual module
+          const moduleContent = `export default "Built at: ${new Date().toLocaleString()}";`;
+          return moduleContent;
+        }
+      }
+    }
+    ```
+
+2.  **Import the virtual module in your app.**
+
+    ```javascript
+    // main.js
+    import buildTimestamp from "./build-time.js?virtual-module";
+
+    // Logs: "Built at: 10/24/2025, 10:30:00 AM" (for example)
+    console.log(buildTimestamp);
+    ```
+
+The `build-time.js` file is executed by Node.js, and the string it returns becomes the `buildTimestamp` module your app imports. The loader itself is never sent to the browser.
 
 ## Vite Setup
 
 ```js
+// vite.config.js
 import { defineConfig } from "vite";
 import virtualModules from "@ulu/vite-plugin-virtual-modules";
 
 export default defineConfig({
   plugins: [
     virtualModules({
-      // See options
+      // See options below
     })
   ]
 });
-
 ```
 
 ## Usage
 
-The example below just demonstrates returning JSON in an ES module but any form of ES module can be returned by the virtual module. In addition to the examples below, see "src/tests/" in this repo for more examples.
+### Advanced Example: Data Fetching
 
-Say for example we were building a static site that displayed a list of users that are managed in a CMS. We want to fetch the data from the CMS via an endpoint and display only the results (JSON) in the page. 
+A common use case is to fetch data from a CMS at build time for a static site. This prevents your data-fetching logic and any associated dependencies from being included in the final browser bundle.
 
-Below is an example of the vistual module file, it fetches users from the CMS and returns an ES module that exposes the JSON (in string form). When this is imported in the application only the resulting JSON module will exist and the fetching logic will be left behind as part of the build process.
+Below is an example of a loader module that fetches users from an API and provides the result as a JSON module.
 
-- The virtual module must provide default export function
-- The function can be async
-- The function must return either a string (the string version of ES module) or and object with 'code' and 'map' properties, which follow the Vite plugin transform API and could be used to provide the source map if needed.
-- `toJsonModule()` below is a helper method that exported from this library. It wraps the JSON in an ES module.
-
-```js
-// fetch-users.js (mock code)
+```javascript
+// fetch-users.js (this is the loader module)
 
 import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
 import { getContent, contentUpdated } from "./some-service.js";
 
+// This function receives a context object (see API section)
 export default function({ reload, isServe }) {
   return {
     async load() {
@@ -93,62 +97,60 @@ export default function({ reload, isServe }) {
         const result = await getContent("users");
         const users = await result.json();
 
-        // Reload this virtual module when something changes
-        // - Only if running dev server
+        // During development, we can set up HMR.
+        // Here, we imagine `contentUpdated` is a function from our service
+        // that calls a callback when the CMS content changes.
         if (isServe) {
           contentUpdated(() => reload());
         }
         
+        // Use the helper to safely create a JSON module
         return toJsonModule(users);
       } catch (error) {
-        console.log(error);
+        console.error(error);
+        throw error;
       }
     }
   }
 }
 ```
 
-Now to use this dynamic module we import the file above like normal in combination with the special `?virtual-module` suffix.
+Now, to use this data, you import the file with the special `?virtual-module` suffix.
 
-```js
-// user-view.js
+```javascript
+// user-view.js (in your application)
 
 import users from "./fetch-users.js?virtual-module";
 
-// JSON: [ { user }, { user }, ... } ]
+// `users` is now the JSON array: [ { user }, { user }, ... } ]
 console.log(users); 
 
-// ... Use the data however
-
+// ... Use the data in your components
 ```
 
-Note: The context object contains details about the module. See context below. 
-This can be used to adjust output based on queries.
+### Using Queries
 
-```js
+You can pass URL queries when importing a virtual module to change its output.
+
+```javascript
 // dog-view.js
-
 import dogs from "./fetch-animals.js?virtual-module&type=dog";
 
-// JSON: [ { dog }, { dog } ]
-console.log(dogs); 
-
-// ... Use the data however
+console.log(dogs); // JSON: [ { dog }, { dog } ]
 ```
 
+The loader module can access these queries via the context object.
 
-```js
+```javascript
 // fetch-animals.js
-
 import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
 
 export default function({ queries }) {
   return {
-    load() {
+    async load() {
       if (queries.type) {
-        return toJsonModule(await animalsByType(queries.type));
-      } else {
-        return toJsonModule(await allAnimals());
+        const animals = await animalsByType(queries.type);
+        return toJsonModule(animals);
       }
     }
   }
@@ -157,81 +159,103 @@ export default function({ queries }) {
 
 ## API
 
-### Importing Virtual Module
+### Importing a Virtual Module
 
-```js
-// The suffix "?virtual-module" is used to load the module as a virtual module
-import testReload from "./path/to/file.js?virtual-module";
-// Using queries
-import testQuery from "./path/to/file.js?virtual-module&type=dog";
+To trigger the plugin, add the `?virtual-module` suffix to your import path.
+
+```javascript
+// The suffix tells Vite to process this import with this plugin
+import myModule from "./path/to/loader.js?virtual-module";
+
+// You can also add queries
+import myQueriedModule from "./path/to/loader.js?virtual-module&foo=bar";
 ```
 
-### Virtual Module Structure
+### The `toJsonModule` Helper
 
-This is the module that creates the virtual module. 
+This plugin exports a helper function, `toJsonModule`, to make it easy to create a module that default exports JSON data.
 
-```js
-export default function({ 
-  // Module ID (import path)
-  id,
-  // Any URL queries passed
-  queries,
-  // Boolean is the serve command
-  isServe,
-  // String command name (build, serve, etc)
-  command,
-  // The path to this file
-  filePath,
-  // The path that is used by node to import the module
-  importPath,
-  // Function that will reload this module (call load again) when called
-  // - Use to udpate the module programmatically
-  reload
-}) {
+```javascript
+import { toJsonModule } from "@ulu/vite-plugin-virtual-modules";
+
+const myData = { key: "value", other: [1, 2] };
+const moduleCode = toJsonModule(myData);
+// moduleCode is now:
+// 'export default JSON.parse("{\"key\":\"value\",\"other\":[1,2]}")'
+```
+
+You might wonder why it uses `JSON.stringify` twice. This is a necessary trick to safely embed a JSON string *inside* a JavaScript string. It ensures that all quotes and special characters are correctly escaped, so `JSON.parse()` will work reliably in the final module.
+
+### Loader Module Structure
+
+The "loader module" is the file you create that generates the virtual module. It must have a default export that is a function. This function returns an object that configures the virtual module's content and behavior.
+
+```javascript
+export default function(context) {
+  // `context` is an object with helpful properties (see below)
+  
   return {
-    // Function that should return a string version of module to load
-    // - Recieves an array of watchedFiles if watch is set
-    // - Can be async
+    // REQUIRED
+    // A function that returns the code for the virtual module.
+    // Can be async.
     load(watchedFiles) {
-      // return  "export default..."
+      // `watchedFiles` is an array of files if `watch` is used.
+      return "export default '''hello world'''";
     },
-    // Watch files option (anything valid to be passed to chokidar)
-    // - By default cwd is this module's director 
-    //   so everything is relative to this file
+
+    // OPTIONAL
+    // Watch files for changes and trigger HMR.
+    // Paths are relative to this loader module file.
     watch: ["some/files/**/*.txt"],
-    // Options to pass to Chokidar
+    
+    // OPTIONAL
+    // Options passed directly to the `chokidar` watcher.
     watchOptions: {},
-    // Events that should trigger reload of module
-    watchEvents: ["add", "unlink", "change", "unlinkDir", "addDir"]
+    
+    // OPTIONAL
+    // Events that should trigger a reload.
+    watchEvents: ["add", "unlink", "change"]
   }
 }
 ```
 
+#### Context Object
+
+Your loader module's default function will be called with a `context` object containing:
+
+- `id`: The full import ID string (e.g., `/path/to/loader.js?virtual-module&foo=bar`).
+- `filePath`: The absolute path to the loader module file.
+- `importPath`: The path used by Node to import the module (can change for HMR).
+- `queries`: An object containing the URL queries from the import ID.
+- `isServe`: A boolean indicating if the Vite dev server is running (`true` for `vite serve`).
+- `command`: The current Vite command (`'serve'` or `'build'`).
+- `reload`: A function to programmatically trigger a reload (HMR) of this module.
+
 ### Plugin Options
 
-Options that can be passed when adding this plugin to vite
+Options that can be passed when adding this plugin in `vite.config.js`.
 
 ```js
-import { defineConfig } from "vite";
+// vite.config.js
 import virtualModules from "@ulu/vite-plugin-virtual-modules";
 
-export default defineConfig({
+export default {
   plugins: [
     virtualModules({
-      // Suffix on the end of imports (Regex)
+      // Regex to identify virtual module imports.
       suffix: /\?virtual-module(&.*)*$/,
-      // Events that trigger reload when watching
-      // - Can be overridden by loader module
+      
+      // Default events that trigger a reload when watching files.
+      // Can be overridden in the loader module.
       watchEvents: ["add", "unlink", "change", "unlinkDir", "addDir"],
-      // Options to be passed to Chokidar for watching 
-      // - Can be overridden by loader module
+      
+      // Default options passed to Chokidar for file watching.
+      // Can be overridden in the loader module.
       watchOptions: {}
     })
   ]
-});
-
+};
 ```
-
 
 ## Change Log
 

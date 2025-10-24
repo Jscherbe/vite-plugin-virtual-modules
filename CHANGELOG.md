@@ -1,5 +1,11 @@
 # Change Log
 
+# 1.0.3
+
+- Fix error handling when an error originates from within a virtual module 
+  - If an error occurs when this plugin loads the virtual module, it will now call rollup error in addition to logging the original error to the console. Which should make errors inside virtual module code easier to trace and not show unrelated errors (fs events .node error, outdated deps waring, etc)
+- Update README (documentation) so it's a little easier to understand what this plugin does
+
 # 1.0.2
 
 - Added extra escaping of JSON string in utility toJsonModule()
