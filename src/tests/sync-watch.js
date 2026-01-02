@@ -6,11 +6,22 @@ import { toJsonModule } from "../../index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export default function() {
+export default function({ queries }) {
   return {
     // watch: ["watched/**/*.txt"],
     watch: ["watched/**/*.txt"],
-    load(watchedFiles) {
+    load({ watchedFiles, data }) {
+
+      console.log("-- SYNC WATCH -- LOAD()");
+
+      // To test this loader with multiple types (query / non-query)
+      if (queries.mode === "count") {
+        // console.log("Sync Watch Query Version", watchedFiles.length);
+        return `export default ${ watchedFiles.length };`;
+      } else {
+        // console.log("Sync Watch Full Version");
+      }
+
       const messages = [];
       watchedFiles.forEach(relPath => {
         const filePath = resolve(__dirname, relPath);
@@ -18,7 +29,7 @@ export default function() {
         messages.push(file.toString());
       });
 
-      return toJsonModule({ messages });
+      return toJsonModule({ messages, lastEvent: data });
     }
   }
 }

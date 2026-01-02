@@ -15,7 +15,7 @@ export default function({ reload, isServe }) {
 
   return {
     load() {
-      return toJsonModule({ msg: `Count: ${ count }` });
+      return toJsonModule({ msg: `Current Count: ${ count }` });
     }
   }
 }

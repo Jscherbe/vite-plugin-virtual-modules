@@ -198,9 +198,13 @@ export default function(context) {
     // REQUIRED
     // A function that returns the code for the virtual module.
     // Can be async.
-    load(watchedFiles) {
-      // `watchedFiles` is an array of files if `watch` is used.
-      return "export default '''hello world'''";
+    // Arguments:
+    // - watchedFiles: Array of relative paths to files that changed (if `watch` is used).
+    // - data: Data passed to `reload(data)` or the event object from a file watcher trigger.
+    //   - File watcher data: `{ event: "change", file: "path/to/file", timestamp: 1234567890 }`
+    // - context: The same context object passed to the factory function (for convenience).
+    load({ watchedFiles, data, context }) {
+      return "export default 'hello world'";
     },
 
     // OPTIONAL

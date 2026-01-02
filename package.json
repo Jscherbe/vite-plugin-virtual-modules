@@ -1,7 +1,7 @@
 {
   "name": "@ulu/vite-plugin-virtual-modules",
   "description": "A Vite plugin to create virtual modules from loader files at build time, with support for HMR, file watching, and query parameters.",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "type": "module",
   "main": "index.js",
   "repository": {

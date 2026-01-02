@@ -5,8 +5,11 @@
   import testQuery from "./tests/sync-queries.js?virtual-module&type=dog";
   import asyncUsers from "./tests/async.js?virtual-module";
   import testWatch from "./tests/sync-watch.js?virtual-module";
-  console.log(asyncUsers);
+  import watchCount from "./tests/sync-watch.js?virtual-module&mode=count";
+  console.log("asyncUsers:\n", asyncUsers);
   console.log("testSync:\n", testSync);
+  console.log("watchCount:\n", watchCount);
+  
 </script>
 
 <template>
@@ -27,6 +30,8 @@
       {{ msg }}
     </li>
   </ul>
+  <p>Last Event: {{ testWatch.lastEvent }}</p>
+  <p>Watched Files Count: {{ watchCount }}</p>
 
   <h2>Reload</h2>
   <p>Should count upwards as module is reloaded in timeout</p>

@@ -10,6 +10,7 @@ const virtualPrefix = '\0';
 const importPaths = new Map();
 const moduleWatchers = new Map();
 const fileWatchers = new Map();
+const reloadData = new Map();
 const pluginName = '@ulu/vite-plugin-virtual-modules';
 const defaults = {
   suffix: /\?virtual-module(&.*)*$/,
@@ -57,9 +58,16 @@ export default function pluginVirtualModules(options) {
         // context, so they can do what ever they need to do with that information
         // and then they return the loader configuration object (ie. load, watch, etc)
         const loader = await importLoader(ctx);
+        
+        // Get the data passed to reload (if any)
+        const data = reloadData.get(id);
+        reloadData.delete(id);
+
+        const watchedFiles = await setupWatchedFiles(ctx, opts, loader);
+
         // Load the virtual module using the user's load method
         // if they were watching files we wait and pass them
-        return await loader.load(await setupWatchedFiles(ctx, opts, loader));
+        return await loader.load({ watchedFiles, data, context: ctx });
       } catch (error) {
         // Log original error so user can see stack trace / etc
         console.error(error);
@@ -96,9 +104,9 @@ function setupWatchedFiles(ctx, opts, loader) {
     const watcher = chokidar.watch(loader.watch, watchOpts);
     fileWatchers.set(id, watcher);
 
-    watcher.on("all", (event) => {
+    watcher.on("all", (event, file) => {
       if (watchEvents.includes(event)) {
-        reload();
+        reload({ event, file, timestamp: Date.now() });
       }
     });
     watcher.on("ready", () => {
@@ -150,7 +158,7 @@ function setupModuleWatcher(ctx) {
     // so that it can be the new url/path to the node module from this point forward.
     // This way if a user reloads the module using the reload() they will get the current 
     // running/cached version of their module
-    importPaths.set(id, cacheBustUrl(id));
+    importPaths.set(filePath, cacheBustUrl(filePath));
     reload();
   });
 }
@@ -163,18 +171,22 @@ function setupModuleWatcher(ctx) {
 function createContext(id) {
   // If this was triggered by file change to the loader, reload the module 
   // in node using cache busting query
-  let importPath = id;
-  if (importPaths.has(id)) {
-    importPath = importPaths.get(id);
+  const filePath = id.split("?")[0];
+  let importPath = filePath;
+  if (importPaths.has(filePath)) {
+    importPath = importPaths.get(filePath);
   }
   return {
     id,
     isServe,
     importPath,
     command: config.command,
-    filePath: id.split("?")[0],
+    filePath,
     queries: url.parse(id, true)?.query,
-    reload: async () => {
+    reload: async (data) => {
+      if (data) {
+        reloadData.set(id, data);
+      }
       if (!isServe) return;
       const mod = await server?.moduleGraph?.getModuleById(id);
       if (mod) {
@@ -235,7 +247,8 @@ function prefixId(id) {
  * Inserts qeuery to the end of module if to prevent node js module caching
  */
 function cacheBustUrl(id) {
-  return id + `&__killcache=${ Date.now() }`;
+  const sep = id.includes("?") ? "&" : "?";
+  return id + `${ sep }__killcache=${ Date.now() }`;
 }
 /**
  * Takes serializable data and converts it into ES Module that stores data as JSON

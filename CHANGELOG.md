@@ -1,5 +1,19 @@
 # Change Log
 
+# 1.1.0
+
+- API Change for loader's load() arguments (**Breaking Change**)
+  - Used to be an array of watched files `load(watchedFilesArray) { ... }`
+  - Is now an object with `load({ watchedFiles, data, context }) { ... }`
+    - Where watchedFiles is an array of files being watched
+    - Data is the data that was passed by whatever called reload() and if called internally because of file watcher it will be passed event data from Chokidar and this plugin to use programmatically
+    - Context is just a reference to the context object (same as what is passed to virtual module factory function)
+- Add reload data for watching
+  - Add watcher event data to loaders load methods. Load methods called from a watcher will have a second argument for data which when triggered from a watcher will include the Chokidar event, timestamp and file that changed
+- Cache Busting Logic Fix: 
+  - In setupModuleWatcher, importPaths.set now uses filePath (the ID without query parameters) as the key instead of the raw id which would include the queries/etc
+  - Similarly, createContext now resolves importPath using filePath. This ensures that cache-busting query strings are appended to the base file path correctly, avoiding potential issues where the ID might contain other parameters. Now cache busting will be per module not per each's unique id with query
+
 # 1.0.3
 
 - Fix error handling when an error originates from within a virtual module 
